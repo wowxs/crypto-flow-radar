@@ -143,10 +143,58 @@ def get_bybit_funding(symbol):
         print(f"[警告] Bybit Funding {symbol} 解析失敗：{e}")
         return None
 
+def get_okx_funding(symbol):
+    """
+    Binance / Bybit Funding 失敗時的 OKX 備援。
+    OKX instId 格式：
+    BTCUSDT -> BTC-USDT-SWAP
+    ETHUSDT -> ETH-USDT-SWAP
+    """
+    symbol_map = {
+        "BTCUSDT": "BTC-USDT-SWAP",
+        "ETHUSDT": "ETH-USDT-SWAP",
+    }
+
+    inst_id = symbol_map.get(symbol)
+
+    if not inst_id:
+        return None
+
+    url = "https://www.okx.com/api/v5/public/funding-rate"
+
+    data = safe_get_json(
+        url,
+        params={"instId": inst_id},
+        source_name=f"OKX Funding 備援 {symbol}",
+    )
+
+    if not data:
+        return None
+
+    try:
+        items = data.get("data", [])
+
+        if not items:
+            return None
+
+        funding_rate = items[0].get("fundingRate")
+
+        if funding_rate is None:
+            return None
+
+        return float(funding_rate)
+
+    except Exception as e:
+        print(f"[警告] OKX Funding {symbol} 解析失敗：{e}")
+        return None
+
 def get_binance_funding(symbol):
     """
-    取得 Binance Funding。
-    若 Binance 在雲端失敗，改用 Bybit Funding 備援。
+    取得 Funding。
+    優先順序：
+    1. Binance Futures
+    2. Bybit
+    3. OKX
     """
     url = "https://fapi.binance.com/fapi/v1/premiumIndex"
 
@@ -156,22 +204,30 @@ def get_binance_funding(symbol):
         source_name=f"Binance Funding {symbol}",
     )
 
-    if not data:
-        print(f"[警告] Binance Funding {symbol} 抓取失敗，改用 Bybit 備援。")
-        return get_bybit_funding(symbol)
+    if data:
+        try:
+            funding = data.get("lastFundingRate")
 
-    try:
-        funding = data.get("lastFundingRate")
+            if funding is not None:
+                return float(funding)
 
-        if funding is None:
-            print(f"[警告] Binance Funding {symbol} 無 lastFundingRate，改用 Bybit 備援。")
-            return get_bybit_funding(symbol)
+        except Exception as e:
+            print(f"[警告] Binance Funding {symbol} 解析失敗：{e}")
 
-        return float(funding)
+    print(f"[警告] Binance Funding {symbol} 抓取失敗，改用 Bybit 備援。")
+    bybit_funding = get_bybit_funding(symbol)
 
-    except Exception as e:
-        print(f"[警告] Binance Funding {symbol} 解析失敗：{e}，改用 Bybit 備援。")
-        return get_bybit_funding(symbol)
+    if bybit_funding is not None:
+        return bybit_funding
+
+    print(f"[警告] Bybit Funding {symbol} 抓取失敗，改用 OKX 備援。")
+    okx_funding = get_okx_funding(symbol)
+
+    if okx_funding is not None:
+        return okx_funding
+
+    print(f"[警告] {symbol} Funding 三個來源皆失敗。")
+    return None
 
 
 def get_binance_open_interest(symbol):
