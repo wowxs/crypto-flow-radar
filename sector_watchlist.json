@@ -1,0 +1,47 @@
+{
+  "AI": {
+    "name": "AI 人工智慧",
+    "coingecko_keywords": ["artificial intelligence", "ai", "ai agents"],
+    "symbols": ["FETUSDT", "WLDUSDT", "RENDERUSDT", "ARKMUSDT", "GRTUSDT", "NEARUSDT"]
+  },
+  "Meme": {
+    "name": "Meme 迷因幣",
+    "coingecko_keywords": ["meme", "memes"],
+    "symbols": ["DOGEUSDT", "SHIBUSDT", "PEPEUSDT", "BONKUSDT", "FLOKIUSDT", "WIFUSDT"]
+  },
+  "Layer1": {
+    "name": "Layer 1 公鏈",
+    "coingecko_keywords": ["layer 1", "smart contract platform"],
+    "symbols": ["SOLUSDT", "AVAXUSDT", "SUIUSDT", "APTUSDT", "SEIUSDT", "ADAUSDT", "DOTUSDT", "ATOMUSDT"]
+  },
+  "Layer2": {
+    "name": "Layer 2 擴容",
+    "coingecko_keywords": ["layer 2", "optimism ecosystem", "arbitrum ecosystem", "base ecosystem"],
+    "symbols": ["OPUSDT", "ARBUSDT", "STRKUSDT", "ZKUSDT", "MANTAUSDT"]
+  },
+  "DeFi": {
+    "name": "DeFi 去中心化金融",
+    "coingecko_keywords": ["decentralized finance", "defi"],
+    "symbols": ["UNIUSDT", "AAVEUSDT", "LDOUSDT", "CRVUSDT", "MKRUSDT", "COMPUSDT", "SNXUSDT", "PENDLEUSDT"]
+  },
+  "RWA": {
+    "name": "RWA 真實世界資產",
+    "coingecko_keywords": ["real world assets", "rwa"],
+    "symbols": ["ONDOUSDT", "PENDLEUSDT", "LINKUSDT", "POLYXUSDT", "MKRUSDT"]
+  },
+  "GameFi": {
+    "name": "GameFi 遊戲板塊",
+    "coingecko_keywords": ["gaming", "gamefi", "metaverse"],
+    "symbols": ["IMXUSDT", "GALAUSDT", "SANDUSDT", "MANAUSDT", "AXSUSDT", "PIXELUSDT"]
+  },
+  "DePIN": {
+    "name": "DePIN 去中心化基建",
+    "coingecko_keywords": ["depin", "decentralized physical infrastructure"],
+    "symbols": ["FILUSDT", "ARUSDT", "IOTXUSDT", "THETAUSDT"]
+  },
+  "Oracle": {
+    "name": "Oracle 預言機",
+    "coingecko_keywords": ["oracle"],
+    "symbols": ["LINKUSDT", "PYTHUSDT", "BANDUSDT", "API3USDT", "TRBUSDT"]
+  }
+}

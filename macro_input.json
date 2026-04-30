@@ -1,0 +1,44 @@
+{
+  "cpi": {
+    "name": "CPI",
+    "status": "降溫",
+    "score": 2,
+    "summary": "CPI 顯示通膨壓力有降溫跡象。通膨降溫會提高市場對 Fed 降息或維持寬鬆的期待，通常有利於 BTC、ETH、Nasdaq 等風險資產。"
+  },
+  "ppi": {
+    "name": "PPI",
+    "status": "中性",
+    "score": 0,
+    "summary": "PPI 沒有明顯惡化，代表生產端通膨壓力暫時沒有進一步升溫，對市場影響偏中性。"
+  },
+  "pce": {
+    "name": "PCE",
+    "status": "降溫",
+    "score": 2,
+    "summary": "PCE 是 Fed 重要觀察指標。若 PCE 降溫，代表 Fed 維持高利率的壓力下降，對科技股與加密貨幣偏正面。"
+  },
+  "nfp": {
+    "name": "NFP",
+    "status": "偏強",
+    "score": -1,
+    "summary": "NFP 偏強代表就業市場仍有韌性，可能降低市場對快速降息的期待，因此對風險資產有一定壓制。"
+  },
+  "unemployment": {
+    "name": "失業率",
+    "status": "小幅上升",
+    "score": 1,
+    "summary": "失業率小幅上升代表勞動市場開始降溫。若不是快速惡化，通常會提高降息預期，對風險資產偏正面。"
+  },
+  "dxy": {
+    "name": "DXY 美元指數",
+    "status": "未接入",
+    "score": 0,
+    "summary": "DXY 尚未自動接入。之後會用美元指數判斷風險資產壓力。"
+  },
+  "us10y": {
+    "name": "10Y 美債殖利率",
+    "status": "未接入",
+    "score": 0,
+    "summary": "10 年期美債殖利率尚未自動接入。之後會用來判斷高風險資產的估值壓力。"
+  }
+}
