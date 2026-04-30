@@ -8,8 +8,72 @@ from modules.utils import safe_get_json
 # Binance 資料
 # =========================
 
+def get_coingecko_spot_fallback(symbol):
+    """
+    Binance 現貨失敗時的 CoinGecko 備援價格。
+    目前先支援 BTCUSDT / ETHUSDT。
+    """
+    symbol_map = {
+        "BTCUSDT": "bitcoin",
+        "ETHUSDT": "ethereum",
+    }
+
+    coin_id = symbol_map.get(symbol)
+
+    if not coin_id:
+        return {
+            "symbol": symbol,
+            "price": None,
+            "price_change_pct": None,
+            "quote_volume": None,
+        }
+
+    url = "https://api.coingecko.com/api/v3/coins/markets"
+
+    data = safe_get_json(
+        url,
+        params={
+            "vs_currency": "usd",
+            "ids": coin_id,
+            "price_change_percentage": "24h",
+            "sparkline": "false",
+        },
+        source_name=f"CoinGecko 備援價格 {symbol}",
+    )
+
+    if not data or not isinstance(data, list):
+        return {
+            "symbol": symbol,
+            "price": None,
+            "price_change_pct": None,
+            "quote_volume": None,
+        }
+
+    item = data[0]
+
+    try:
+        return {
+            "symbol": symbol,
+            "price": float(item.get("current_price", 0)),
+            "price_change_pct": float(item.get("price_change_percentage_24h", 0)),
+            "quote_volume": float(item.get("total_volume", 0)),
+        }
+    except Exception:
+        return {
+            "symbol": symbol,
+            "price": None,
+            "price_change_pct": None,
+            "quote_volume": None,
+        }
+
+
 def get_binance_spot_price(symbol):
+    """
+    取得 Binance 現貨 24H ticker。
+    若 Binance 在雲端失敗，改用 CoinGecko 備援。
+    """
     url = "https://api.binance.com/api/v3/ticker/24hr"
+
     data = safe_get_json(
         url,
         params={"symbol": symbol},
@@ -17,19 +81,29 @@ def get_binance_spot_price(symbol):
     )
 
     if not data:
+        print(f"[警告] Binance 現貨 {symbol} 抓取失敗，改用 CoinGecko 備援。")
+        return get_coingecko_spot_fallback(symbol)
+
+    try:
+        price = float(data.get("lastPrice", 0))
+        price_change_pct = float(data.get("priceChangePercent", 0))
+        quote_volume = float(data.get("quoteVolume", 0))
+
+        # 如果 Binance 回傳異常空值，也改用 CoinGecko
+        if price <= 0:
+            print(f"[警告] Binance 現貨 {symbol} 價格異常，改用 CoinGecko 備援。")
+            return get_coingecko_spot_fallback(symbol)
+
         return {
-            "price": None,
-            "price_change_pct": None,
-            "volume": None,
-            "quote_volume": None,
+            "symbol": symbol,
+            "price": price,
+            "price_change_pct": price_change_pct,
+            "quote_volume": quote_volume,
         }
 
-    return {
-        "price": float(data.get("lastPrice", 0)),
-        "price_change_pct": float(data.get("priceChangePercent", 0)),
-        "volume": float(data.get("volume", 0)),
-        "quote_volume": float(data.get("quoteVolume", 0)),
-    }
+    except Exception as e:
+        print(f"[警告] Binance 現貨 {symbol} 解析失敗：{e}，改用 CoinGecko 備援。")
+        return get_coingecko_spot_fallback(symbol)
 
 
 def get_binance_funding(symbol):
