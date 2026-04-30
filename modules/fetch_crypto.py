@@ -105,19 +105,73 @@ def get_binance_spot_price(symbol):
         print(f"[警告] Binance 現貨 {symbol} 解析失敗：{e}，改用 CoinGecko 備援。")
         return get_coingecko_spot_fallback(symbol)
 
+def get_bybit_funding(symbol):
+    """
+    Binance Funding 失敗時的 Bybit 備援。
+    目前支援 BTCUSDT / ETHUSDT 等 USDT 永續合約。
+    """
+    url = "https://api.bybit.com/v5/market/tickers"
 
-def get_binance_funding(symbol):
-    url = "https://fapi.binance.com/fapi/v1/fundingRate"
     data = safe_get_json(
         url,
-        params={"symbol": symbol, "limit": 1},
+        params={
+            "category": "linear",
+            "symbol": symbol,
+        },
+        source_name=f"Bybit Funding 備援 {symbol}",
+    )
+
+    if not data:
+        return None
+
+    try:
+        result = data.get("result", {})
+        items = result.get("list", [])
+
+        if not items:
+            return None
+
+        item = items[0]
+        funding_rate = item.get("fundingRate")
+
+        if funding_rate is None:
+            return None
+
+        return float(funding_rate)
+
+    except Exception as e:
+        print(f"[警告] Bybit Funding {symbol} 解析失敗：{e}")
+        return None
+
+def get_binance_funding(symbol):
+    """
+    取得 Binance Funding。
+    若 Binance 在雲端失敗，改用 Bybit Funding 備援。
+    """
+    url = "https://fapi.binance.com/fapi/v1/premiumIndex"
+
+    data = safe_get_json(
+        url,
+        params={"symbol": symbol},
         source_name=f"Binance Funding {symbol}",
     )
 
-    if not data or not isinstance(data, list):
-        return None
+    if not data:
+        print(f"[警告] Binance Funding {symbol} 抓取失敗，改用 Bybit 備援。")
+        return get_bybit_funding(symbol)
 
-    return float(data[0].get("fundingRate", 0))
+    try:
+        funding = data.get("lastFundingRate")
+
+        if funding is None:
+            print(f"[警告] Binance Funding {symbol} 無 lastFundingRate，改用 Bybit 備援。")
+            return get_bybit_funding(symbol)
+
+        return float(funding)
+
+    except Exception as e:
+        print(f"[警告] Binance Funding {symbol} 解析失敗：{e}，改用 Bybit 備援。")
+        return get_bybit_funding(symbol)
 
 
 def get_binance_open_interest(symbol):
