@@ -98,6 +98,7 @@ st.set_page_config(
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 HTML_REPORT_PATH = PROJECT_ROOT / "output" / "crypto_flow_radar.html"
+MACRO_LATEST_PATH = PROJECT_ROOT / "data" / "processed" / "macro_latest.json"
 SECTOR_WATCHLIST_PATH = PROJECT_ROOT / "sector_watchlist.json"
 SECTOR_WATCHLIST_DRAFT_PATH = PROJECT_ROOT / "data" / "processed" / "sector_watchlist_draft.json"
 
@@ -171,6 +172,20 @@ def run_full_update():
 
     return True, "完整資料更新完成。\n\n" + macro_message
 
+def ensure_macro_cache():
+    """
+    Streamlit Cloud 第一次部署時，data/processed/macro_latest.json 不會存在。
+    若不存在，就自動執行一次 update_macro_data.py。
+    """
+    if MACRO_LATEST_PATH.exists():
+        return
+
+    ok, message = run_macro_update()
+
+    if not ok:
+        print("[警告] 自動更新 FRED 宏觀快取失敗：")
+        print(message)
+
 def get_html_report_bytes():
     if not HTML_REPORT_PATH.exists():
         return None
@@ -233,6 +248,8 @@ def apply_sector_watchlist_draft():
 
 @st.cache_data(ttl=300)
 def load_dashboard_data():
+    ensure_macro_cache()
+
     crypto = get_crypto_data()
 
     macro_input = load_macro_base_data()
@@ -457,33 +474,32 @@ with tab_overview:
     m1, m2, m3, m4 = st.columns(4)
 
     m1.metric(
-    "BTC 價格",
-    fmt_price_safe(btc.get("price")),
-    fmt_percent_safe(btc.get("price_change_pct")),
-)
+        "BTC 價格",
+        fmt_price_safe(btc.get("price")),
+        fmt_percent_safe(btc.get("price_change_pct")),
+    )
 
-m2.metric(
-    "ETH 價格",
-    fmt_price_safe(eth.get("price")),
-    fmt_percent_safe(eth.get("price_change_pct")),
-)
+    m2.metric(
+        "ETH 價格",
+        fmt_price_safe(eth.get("price")),
+        fmt_percent_safe(eth.get("price_change_pct")),
+    )
 
-m3.metric(
-    "恐懼貪婪",
-    fg.get("value") if fg.get("value") is not None else "無資料",
-    fg.get("classification", ""),
-)
+    m3.metric(
+        "恐懼貪婪",
+        fg.get("value") if fg.get("value") is not None else "無資料",
+        fg.get("classification", ""),
+    )
 
-btc_funding_value = btc.get("funding")
+    btc_funding_value = btc.get("funding")
 
-m4.metric(
-    "BTC Funding",
-    fmt_funding_safe(btc_funding_value),
-)
+    m4.metric(
+        "BTC Funding",
+        fmt_funding_safe(btc_funding_value),
+    )
 
-if btc_funding_value is None:
-    st.caption("合約 Funding 在雲端環境暫時無法取得，現貨價格與宏觀資料仍可正常判讀。")
-
+    if btc_funding_value is None:
+        st.caption("合約 Funding 在雲端環境暫時無法取得，現貨價格與宏觀資料仍可正常判讀。")
 with tab_macro:
     st.subheader("宏觀判讀區")
 
@@ -544,9 +560,34 @@ with tab_macro:
 with tab_flow:
     st.subheader("加密資金流判讀區")
 
+with tab_flow:
+    st.subheader("加密資金流判讀區")
+
+    if btc.get("funding") is None and eth.get("funding") is None:
+        st.info(
+            "目前合約 Funding 資料暫無。Web 版會優先使用現貨價格、成交量、宏觀資料、情緒與板塊輪動進行判讀。"
+        )
+
     flow_col1, flow_col2 = st.columns(2)
 
     with flow_col1:
+        st.metric("資金流分數", data["flow_score"])
+
+        st.write("**資金流判讀理由**")
+        for reason in data["flow_reasons"]:
+            st.write(f"- {reason}")
+
+    with flow_col2:
+        st.metric("過熱風險分數", data["heat_score"])
+
+        st.write("**過熱警示**")
+        for warning in data["heat_warnings"]:
+            if data["heat_score"] >= 4:
+                st.error(warning)
+            elif data["heat_score"] >= 2:
+                st.warning(warning)
+            else:
+                st.info(warning)
         st.metric("資金流分數", data["flow_score"])
 
         st.write("**資金流判讀理由**")
@@ -927,33 +968,33 @@ with tab_charts:
 
         if btc_funding is None and eth_funding is None:
             st.warning(
-            "目前雲端環境無法取得 BTC / ETH Funding。"
-            "這通常是交易所合約 API 對雲端 IP 不穩定，並不影響現貨價格、宏觀資料與板塊資料判讀。"
-        )
+                "目前雲端環境無法取得 BTC / ETH Funding。"
+                "這通常是交易所合約 API 對雲端 IP 不穩定，並不影響現貨價格、宏觀資料與板塊資料判讀。"
+            )
         else:
             funding_labels = ["BTC Funding", "ETH Funding"]
             funding_values = [
-            safe_float(btc_funding) * 100,
-            safe_float(eth_funding) * 100,
+                safe_float(btc_funding) * 100,
+                safe_float(eth_funding) * 100,
             ]
 
             fig_funding = go.Figure()
             fig_funding.add_trace(go.Bar(
-            x=funding_labels,
-            y=funding_values,
-            text=[f"{v:.4f}%" for v in funding_values],
-            textposition="auto",
+                x=funding_labels,
+                y=funding_values,
+                text=[f"{v:.4f}%" for v in funding_values],
+                textposition="auto",
             ))
 
             fig_funding.update_layout(
-            height=360,
-            margin=dict(l=20, r=20, t=30, b=40),
-            yaxis_title="Funding Rate (%)",
+                height=360,
+                margin=dict(l=20, r=20, t=30, b=40),
+                yaxis_title="Funding Rate (%)",
             )
 
-        st.plotly_chart(fig_funding, use_container_width=True)
+            st.plotly_chart(fig_funding, use_container_width=True)
 
-        st.write("### 強勢板塊 Top 8｜24H 漲跌")
+    st.write("### 強勢板塊 Top 8｜24H 漲跌")
 
     if top_categories:
         names = [x["name"] for x in top_categories[:8]]
@@ -978,6 +1019,7 @@ with tab_charts:
         st.plotly_chart(fig_sector, use_container_width=True)
     else:
         st.warning("目前沒有板塊資料可產生圖表。")
+
 # ===== 資料狀態 Tab =====
 with tab_status:
     st.subheader("資料來源狀態")
