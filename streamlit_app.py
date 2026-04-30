@@ -83,10 +83,10 @@ def fmt_percent_safe(value):
 def fmt_funding_safe(value):
     try:
         if value is None:
-            return "無資料"
+            return "合約資料暫無"
         return f"{float(value) * 100:.4f}%"
     except Exception:
-        return "無資料"
+        return "合約資料暫無"
 
 st.set_page_config(
     page_title="Crypto Flow Radar",
@@ -474,10 +474,15 @@ m3.metric(
     fg.get("classification", ""),
 )
 
+btc_funding_value = btc.get("funding")
+
 m4.metric(
     "BTC Funding",
-    fmt_funding_safe(btc.get("funding")),
+    fmt_funding_safe(btc_funding_value),
 )
+
+if btc_funding_value is None:
+    st.caption("合約 Funding 在雲端環境暫時無法取得，現貨價格與宏觀資料仍可正常判讀。")
 
 with tab_macro:
     st.subheader("宏觀判讀區")
@@ -917,29 +922,38 @@ with tab_charts:
     with chart_col2:
         st.write("### BTC / ETH Funding 對比")
 
-        funding_labels = ["BTC Funding", "ETH Funding"]
-        funding_values = [
-            (btc.get("funding") or 0) * 100,
-            (eth.get("funding") or 0) * 100,
-        ]
+        btc_funding = btc.get("funding")
+        eth_funding = eth.get("funding")
 
-        fig_funding = go.Figure()
-        fig_funding.add_trace(go.Bar(
+        if btc_funding is None and eth_funding is None:
+            st.warning(
+            "目前雲端環境無法取得 BTC / ETH Funding。"
+            "這通常是交易所合約 API 對雲端 IP 不穩定，並不影響現貨價格、宏觀資料與板塊資料判讀。"
+        )
+        else:
+            funding_labels = ["BTC Funding", "ETH Funding"]
+            funding_values = [
+            safe_float(btc_funding) * 100,
+            safe_float(eth_funding) * 100,
+            ]
+
+            fig_funding = go.Figure()
+            fig_funding.add_trace(go.Bar(
             x=funding_labels,
             y=funding_values,
             text=[f"{v:.4f}%" for v in funding_values],
             textposition="auto",
-        ))
+            ))
 
-        fig_funding.update_layout(
+            fig_funding.update_layout(
             height=360,
             margin=dict(l=20, r=20, t=30, b=40),
             yaxis_title="Funding Rate (%)",
-        )
+            )
 
         st.plotly_chart(fig_funding, use_container_width=True)
 
-    st.write("### 強勢板塊 Top 8｜24H 漲跌")
+        st.write("### 強勢板塊 Top 8｜24H 漲跌")
 
     if top_categories:
         names = [x["name"] for x in top_categories[:8]]
