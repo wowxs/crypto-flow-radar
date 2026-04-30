@@ -455,31 +455,138 @@ def get_coingecko_category_raw():
 
     return data
 
+COINGECKO_SYMBOL_ID_CACHE = {}
+
+
+def normalize_usdt_symbol(symbol):
+    """
+    FETUSDT -> FET
+    WLDUSDT -> WLD
+    RENDERUSDT -> RENDER
+    """
+    symbol = symbol.upper().strip()
+
+    if symbol.endswith("USDT"):
+        return symbol[:-4]
+
+    return symbol
+
+
+def resolve_coingecko_id_by_symbol(symbol):
+    """
+    用 CoinGecko search API 將交易對 base symbol 轉成 CoinGecko coin id。
+    注意：同一個 symbol 可能有多個幣，這裡取搜尋結果第一個，作為備援用途。
+    """
+    base_symbol = normalize_usdt_symbol(symbol).lower()
+
+    if base_symbol in COINGECKO_SYMBOL_ID_CACHE:
+        return COINGECKO_SYMBOL_ID_CACHE[base_symbol]
+
+    url = "https://api.coingecko.com/api/v3/search"
+
+    data = safe_get_json(
+        url,
+        params={"query": base_symbol},
+        source_name=f"CoinGecko 搜尋代表幣 {symbol}",
+    )
+
+    if not data:
+        COINGECKO_SYMBOL_ID_CACHE[base_symbol] = None
+        return None
+
+    coins = data.get("coins", [])
+
+    if not coins:
+        COINGECKO_SYMBOL_ID_CACHE[base_symbol] = None
+        return None
+
+    # 優先找 symbol 完全相同的結果
+    for coin in coins:
+        if str(coin.get("symbol", "")).lower() == base_symbol:
+            coin_id = coin.get("id")
+            COINGECKO_SYMBOL_ID_CACHE[base_symbol] = coin_id
+            return coin_id
+
+    # 找不到完全相同就取第一個
+    coin_id = coins[0].get("id")
+    COINGECKO_SYMBOL_ID_CACHE[base_symbol] = coin_id
+    return coin_id
+
+
+def get_coingecko_symbol_24hr_for_sector(symbol):
+    """
+    Binance 代表幣行情失敗時，改用 CoinGecko 備援。
+    """
+    coin_id = resolve_coingecko_id_by_symbol(symbol)
+
+    if not coin_id:
+        return None
+
+    url = "https://api.coingecko.com/api/v3/simple/price"
+
+    data = safe_get_json(
+        url,
+        params={
+            "ids": coin_id,
+            "vs_currencies": "usd",
+            "include_24hr_change": "true",
+            "include_24hr_vol": "true",
+        },
+        source_name=f"CoinGecko 代表幣行情備援 {symbol}",
+    )
+
+    if not data or coin_id not in data:
+        return None
+
+    item = data.get(coin_id, {})
+
+    try:
+        price = item.get("usd")
+        change = item.get("usd_24h_change")
+        volume = item.get("usd_24h_vol")
+
+        if price is None or change is None:
+            return None
+
+        return {
+            "symbol": symbol,
+            "price_change_pct": float(change),
+            "quote_volume": float(volume or 0),
+            "last_price": float(price),
+            "source": "CoinGecko",
+        }
+
+    except Exception:
+        return None
 
 def get_symbol_24hr_for_sector(symbol):
     """
-    取得 Binance 代表幣 24H 資料。
+    取得代表幣 24H 資料。
+    優先使用 Binance；若雲端 Binance 失敗，改用 CoinGecko 備援。
     用於代表幣追蹤，不代表官方板塊分類。
     """
     url = "https://api.binance.com/api/v3/ticker/24hr"
+
     data = safe_get_json(
         url,
         params={"symbol": symbol},
         source_name=f"Binance 代表幣追蹤 {symbol}",
     )
 
-    if not data:
-        return None
+    if data:
+        try:
+            return {
+                "symbol": symbol,
+                "price_change_pct": float(data.get("priceChangePercent", 0)),
+                "quote_volume": float(data.get("quoteVolume", 0)),
+                "last_price": float(data.get("lastPrice", 0)),
+                "source": "Binance",
+            }
+        except Exception:
+            pass
 
-    try:
-        return {
-            "symbol": symbol,
-            "price_change_pct": float(data.get("priceChangePercent", 0)),
-            "quote_volume": float(data.get("quoteVolume", 0)),
-            "last_price": float(data.get("lastPrice", 0)),
-        }
-    except Exception:
-        return None
+    print(f"[警告] Binance 代表幣 {symbol} 抓取失敗，改用 CoinGecko 備援。")
+    return get_coingecko_symbol_24hr_for_sector(symbol)
 
 
 def match_coingecko_sector(coingecko_raw, keywords):
@@ -566,14 +673,15 @@ def build_watchlist_sector_flow(sector_info):
 
     if not rows:
         return {
-            "status": "無有效代表幣",
-            "change_24h": None,
-            "volume_24h": 0,
-            "coin_count": 0,
-            "positive_count": 0,
-            "negative_count": 0,
-            "symbols": [],
-        }
+        "status": "無有效行情",
+        "change_24h": None,
+        "volume_24h": 0,
+        "coin_count": len(symbols),
+        "valid_coin_count": 0,
+        "positive_count": 0,
+        "negative_count": 0,
+        "symbols": symbols,
+    }
 
     total_volume = sum(x["quote_volume"] for x in rows)
 
@@ -610,7 +718,7 @@ def judge_consistency(coingecko_status, watchlist_status):
     """
     判斷第三方分類與代表幣追蹤是否一致。
     """
-    if coingecko_status == "無對應分類" and watchlist_status == "無有效代表幣":
+    if coingecko_status == "無對應分類" and watchlist_status in ["無有效代表幣", "無有效行情"]:
         return "低", "低"
 
     if coingecko_status == "無對應分類":
@@ -618,7 +726,7 @@ def judge_consistency(coingecko_status, watchlist_status):
             return "中", "中"
         return "低", "低"
 
-    if watchlist_status == "無有效代表幣":
+    if watchlist_status in ["無有效代表幣", "無有效行情"]:
         if coingecko_status in ["偏強", "偏弱"]:
             return "低", "低"
         return "低", "低"
@@ -686,6 +794,7 @@ def build_sector_cross_validation():
             "watchlist_change": wl_result.get("change_24h"),
             "watchlist_volume": wl_result.get("volume_24h", 0),
             "coin_count": wl_result.get("coin_count", 0),
+            "valid_coin_count": wl_result.get("valid_coin_count", 0),
             "positive_count": wl_result.get("positive_count", 0),
             "negative_count": wl_result.get("negative_count", 0),
 
