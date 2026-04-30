@@ -53,6 +53,40 @@ def fmt_pct_short(value):
 
     return f"{value:.2f}%"
 
+def safe_float(value, default=0.0):
+    try:
+        if value is None:
+            return default
+        return float(value)
+    except Exception:
+        return default
+
+
+def fmt_price_safe(value):
+    try:
+        if value is None:
+            return "無資料"
+        return f"{float(value):,.2f}"
+    except Exception:
+        return "無資料"
+
+
+def fmt_percent_safe(value):
+    try:
+        if value is None:
+            return "無資料"
+        return f"{float(value):.2f}%"
+    except Exception:
+        return "無資料"
+
+
+def fmt_funding_safe(value):
+    try:
+        if value is None:
+            return "無資料"
+        return f"{float(value) * 100:.4f}%"
+    except Exception:
+        return "無資料"
 
 st.set_page_config(
     page_title="Crypto Flow Radar",
@@ -422,10 +456,28 @@ with tab_overview:
 
     m1, m2, m3, m4 = st.columns(4)
 
-    m1.metric("BTC 價格", f"{btc.get('price', 0):,.2f}", f"{btc.get('price_change_pct', 0):.2f}%")
-    m2.metric("ETH 價格", f"{eth.get('price', 0):,.2f}", f"{eth.get('price_change_pct', 0):.2f}%")
-    m3.metric("恐懼貪婪", fg.get("value", "無資料"), fg.get("classification", ""))
-    m4.metric("BTC Funding", f"{(btc.get('funding') or 0) * 100:.4f}%")
+    m1.metric(
+    "BTC 價格",
+    fmt_price_safe(btc.get("price")),
+    fmt_percent_safe(btc.get("price_change_pct")),
+)
+
+m2.metric(
+    "ETH 價格",
+    fmt_price_safe(eth.get("price")),
+    fmt_percent_safe(eth.get("price_change_pct")),
+)
+
+m3.metric(
+    "恐懼貪婪",
+    fg.get("value") if fg.get("value") is not None else "無資料",
+    fg.get("classification", ""),
+)
+
+m4.metric(
+    "BTC Funding",
+    fmt_funding_safe(btc.get("funding")),
+)
 
 with tab_macro:
     st.subheader("宏觀判讀區")
